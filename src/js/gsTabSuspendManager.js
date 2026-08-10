@@ -1,4 +1,3 @@
-import  * as html2canvas        from './html2canvas.min.js';
 import  { gsChrome }              from './gsChrome.js';
 import  { gsIndexedDb }           from './gsIndexedDb.js';
 import  { gsMessages }            from './gsMessages.js';
@@ -8,6 +7,8 @@ import  { gsTabDiscardManager }   from './gsTabDiscardManager.js';
 import  { gsTabQueue }            from './gsTabQueue.js';
 import  { gsUtils }               from './gsUtils.js';
 import  { tgs }                   from './tgs.js';
+import  { shouldSkipAutomaticSuspension } from './fork/automaticSuspensionEligibility.js';
+import  { saveSuspendedTabInfo }  from './fork/suspendedTabPreparation.js';
 
 export const gsTabSuspendManager = (function() {
 
@@ -127,6 +128,7 @@ export const gsTabSuspendManager = (function() {
           tab.url,
           savedTabInfo.title,
           0,
+          savedTabInfo.favIconUrl,
         );
         gsUtils.log(tab.id, QUEUE_ID, 'Interrupting tab loading to resuspend tab');
         const success = await executeTabSuspension(tab, suspendedUrl);
@@ -176,7 +178,12 @@ export const gsTabSuspendManager = (function() {
     tab.url = timestampedUrl;
     await saveSuspendData(tab);
 
-    const suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, tabInfo.scrollPos,);
+    const suspendedUrl = gsUtils.generateSuspendedUrl(
+      tab.url,
+      tab.title,
+      tabInfo.scrollPos,
+      tab.favIconUrl,
+    );
     executionProps.suspendedUrl = suspendedUrl;
 
     if (screenCaptureMode === '0') {
@@ -253,44 +260,51 @@ export const gsTabSuspendManager = (function() {
     }
   }
 
-  function executeTabSuspension(tab, suspendedUrl) {
-    return new Promise(async (resolve) => {
-      // Remove any existing queued tab checks (this can happen if we try to suspend
-      // a tab immediately after it gains focus)
-      gsTabCheckManager.unqueueTabCheck(tab);
+  async function executeTabSuspension(tab, suspendedUrl) {
+    // Remove any existing queued tab checks (this can happen if we try to suspend
+    // a tab immediately after it gains focus)
+    gsTabCheckManager.unqueueTabCheck(tab);
 
-      // If we want tabs to be discarded instead of suspending them
-      const discardInPlaceOfSuspend = await gsStorage.getOption(gsStorage.DISCARD_IN_PLACE_OF_SUSPEND);
-      if (discardInPlaceOfSuspend) {
-        await tgs.clearAutoSuspendTimerForTabId(tab.id);
-        gsTabDiscardManager.queueTabForDiscard(tab);
-        resolve(true);
-        return;
-      }
+    // If we want tabs to be discarded instead of suspending them
+    const discardInPlaceOfSuspend = await gsStorage.getOption(gsStorage.DISCARD_IN_PLACE_OF_SUSPEND);
+    if (discardInPlaceOfSuspend) {
+      await tgs.clearAutoSuspendTimerForTabId(tab.id);
+      gsTabDiscardManager.queueTabForDiscard(tab);
+      return true;
+    }
 
-      if (gsUtils.isSuspendedTab(tab, true)) {
-        gsUtils.log(tab.id, 'Tab already suspended');
-        resolve(false);
-        return;
-      }
+    if (gsUtils.isSuspendedTab(tab, true)) {
+      gsUtils.log(tab.id, 'Tab already suspended');
+      return false;
+    }
 
-      if (!suspendedUrl) {
-        gsUtils.log(tab.id, 'executionProps.suspendedUrl not set!');
-        suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, 0);
-      }
+    if (!suspendedUrl) {
+      gsUtils.log(tab.id, 'executionProps.suspendedUrl not set!');
+      suspendedUrl = gsUtils.generateSuspendedUrl(
+        tab.url,
+        tab.title,
+        0,
+        tab.favIconUrl,
+      );
+    }
 
-      gsUtils.log(tab.id, 'Suspending tab');
+    gsUtils.log(tab.id, 'Suspending tab');
+    try {
       await tgs.setTabStatePropForTabId(tab.id, tgs.STATE_INITIALISE_SUSPENDED_TAB, true);
-      gsChrome.tabsUpdate(tab.id, { url: suspendedUrl }).then(updatedTab => {
-        resolve(updatedTab !== null);
-      });
-    });
+    }
+    catch (error) {
+      gsUtils.warning(tab.id, 'Failed to persist suspension state. Aborting suspension.', error);
+      return false;
+    }
+
+    const updatedTab = await gsChrome.tabsUpdate(tab.id, { url: suspendedUrl });
+    return updatedTab !== null;
   }
 
   // forceLevel indicates which users preferences to respect when attempting to suspend the tab
   // 1: Suspend if at all possible
   // 2: Respect whitelist, temporary whitelist, form input, pinned tabs, audible preferences, and exclude current active tab
-  // 3: Same as above (2), plus also respect internet connectivity, running on battery, and time to suspend=never preferences.
+  // 3: Same as above (2), plus also respect standalone app windows, internet connectivity, running on battery, and time to suspend=never preferences.
   async function checkTabEligibilityForSuspension(tab, forceLevel) {
     // gsUtils.log(tab.id, 'gsTabSuspendManager', 'checkTabEligibilityForSuspension', forceLevel);
     if (forceLevel >= 1) {
@@ -317,6 +331,9 @@ export const gsTabSuspendManager = (function() {
           return false;
         }
       }
+    }
+    if (await shouldSkipAutomaticSuspension(tab, forceLevel, gsChrome.windowsGet)) {
+      return false;
     }
     if (forceLevel >= 3) {
       if (await gsStorage.getOption(gsStorage.IGNORE_WHEN_OFFLINE) && !navigator.onLine) {
@@ -398,16 +415,7 @@ export const gsTabSuspendManager = (function() {
   }
 
   async function saveSuspendData(tab) {
-    const tabProperties = {
-      date: new Date(),
-      title: tab.title,
-      url: tab.url,
-      favIconUrl: tab.favIconUrl,
-      pinned: tab.pinned,
-      index: tab.index,
-      windowId: tab.windowId,
-    };
-    await gsIndexedDb.addSuspendedTabInfo(tabProperties);
+    await saveSuspendedTabInfo(tab);
 
     // gsFavicon can't be loaded here since there's no DOM access yet
     // const faviconMeta = await gsFavicon.buildFaviconMetaFromChrome( tab.url );
@@ -462,9 +470,9 @@ export const gsTabSuspendManager = (function() {
           }
           width = document.body.clientWidth;
 
-          // console.log('Generating via html2canvas..');
           const generateCanvas = () => {
-            return html2canvas(document.body, {
+            // html2canvas is injected into the target tab above.
+            return globalThis.html2canvas(document.body, {
               height,
               width,
               logging: false,

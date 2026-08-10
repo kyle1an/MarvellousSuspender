@@ -1,0 +1,3 @@
+# Keep suspension behavior with its runtime owner
+
+MarvellousSuspender owns Automatic Suspension Eligibility, Suspended Page behavior, favicon resolution, and the result of a suspension request, including when Tab Out initiates Explicit Suspension. Tab Out owns orchestration and consumes that result through a narrow external seam. Retained customizations are selectively reimplemented behind narrow seams in upstream-derived code instead of merging the preserved fork wholesale or creating a second suspension implementation in Tab Out, accepting small adapter indirection to reduce recurring Upstream Integration friction.

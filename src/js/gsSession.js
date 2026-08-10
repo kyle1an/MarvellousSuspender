@@ -6,6 +6,7 @@ import  { gsTabCheckManager }     from './gsTabCheckManager.js';
 import  { gsTabDiscardManager }   from './gsTabDiscardManager.js';
 import  { gsUtils }               from './gsUtils.js';
 import  { tgs }                   from './tgs.js';
+import  { prepareSuspendedTab }   from './fork/suspendedTabPreparation.js';
 
 export const gsSession = (function() {
 
@@ -710,7 +711,11 @@ export const gsSession = (function() {
   async function createNewTabFromSessionTab( sessionTab, windowId, index, suspendMode ) {
     let url = sessionTab.url;
     if (suspendMode === 1 && gsUtils.isNormalTab(sessionTab)) {
-      url = gsUtils.generateSuspendedUrl(sessionTab.url, sessionTab.title);
+      url = await prepareSuspendedTab({
+        ...sessionTab,
+        index,
+        windowId,
+      });
     } else if (suspendMode === 2 && gsUtils.isSuspendedTab(sessionTab)) {
       url = gsUtils.getOriginalUrl(sessionTab.url);
     }

@@ -10,6 +10,7 @@ build
 node_modules
 Thumbs.db
 tmp
-/docs
+/docs/*
+!/docs/adr/
 /test
 .dev-notes/

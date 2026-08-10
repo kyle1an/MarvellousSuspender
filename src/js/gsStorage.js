@@ -348,7 +348,7 @@ export const gsStorage = {
       gsUtils.error('saveTabState', 'Missing tabId');
       return;
     }
-    gsStorage.saveStorage('session', `gsTab${tabId}`, state);
+    return gsStorage.saveStorage('session', `gsTab${tabId}`, state);
   },
 
   deleteTabState: async (tabId) => {

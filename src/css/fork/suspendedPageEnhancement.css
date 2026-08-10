@@ -1,0 +1,147 @@
+body.suspendedPageEnhanced {
+  font-family: revert;
+  font-size: 16px;
+  line-height: 1.5em;
+}
+
+@media (min-resolution: 192dpi) {
+  body.suspendedPageEnhanced {
+    font-weight: 300;
+  }
+}
+
+.suspendedPageEnhanced .gsTopBar {
+  padding: 30px 60px 0;
+  text-align: start;
+}
+
+.suspendedPageEnhanced .gsTopBarTitleWrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.suspendedPageEnhanced .faviconWrap {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-bottom: 0;
+}
+
+.suspendedPageEnhanced .gsTopBarImg {
+  display: block;
+}
+
+.suspendedPageEnhanced .gsTopBarTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suspendedPageEnhanced .suspendedMsg-shortcut {
+  font-size: 15px;
+}
+
+.suspendedPageEnhanced .hotkeyCommand {
+  font: inherit;
+  word-spacing: normal;
+}
+
+.suspendedPageEnhanced .snoozyWrapper {
+  display: none;
+}
+
+.suspendedPageEnhanced .suspendedPageUrlRow {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.suspendedPageUrlSpinner {
+  display: inline-block;
+  visibility: hidden;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-right: 10px;
+  border: 2px solid rgba(52, 119, 219, 0.2);
+  border-top-color: #3477db;
+  border-radius: 50%;
+  animation: suspendedPageUrlSpinner 0.6s linear infinite;
+}
+
+.suspendedPageUrlSpinner.loading {
+  visibility: visible;
+}
+
+@keyframes suspendedPageUrlSpinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.suspendedPageEnhanced #gsTopBarUrl.suspendedPageUrlInput {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  margin-bottom: 0;
+  padding: 4px 12px;
+  overflow: visible;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-overflow: clip;
+  white-space: normal;
+  cursor: text;
+  background: rgba(127, 127, 127, 0.06);
+  border: 1px solid transparent;
+  border-radius: 20px;
+  corner-shape: squircle;
+  outline: none;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.suspendedPageEnhanced #gsTopBarUrl.suspendedPageUrlInput:hover {
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.suspendedPageEnhanced #gsTopBarUrl.suspendedPageUrlInput:focus {
+  background: transparent;
+  border-color: rgba(127, 127, 127, 0.5);
+}
+
+.suspendedPageEnhanced #refreshSpinner.spinner::before {
+  display: none;
+}
+
+.reloadSuspendedPageButton {
+  position: fixed;
+  z-index: 200;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 50%;
+}
+
+.reloadSuspendedPageButton:hover {
+  background: rgba(127, 127, 127, 0.1);
+}
+
+.reloadSuspendedPageButton:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.reloadSuspendedPageButton.reloadFailed {
+  border-color: var(--destructive);
+}

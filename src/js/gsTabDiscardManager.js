@@ -4,6 +4,7 @@ import  { gsTabQueue }            from './gsTabQueue.js';
 import  { gsTabSuspendManager }   from './gsTabSuspendManager.js';
 import  { gsUtils }               from './gsUtils.js';
 import  { tgs }                   from './tgs.js';
+import  { prepareSuspendedTab }   from './fork/suspendedTabPreparation.js';
 
 export const gsTabDiscardManager = (function() {
 
@@ -134,7 +135,7 @@ export const gsTabDiscardManager = (function() {
       await gsTabSuspendManager.checkTabEligibilityForSuspension(tab, 3)
     ) {
       await tgs.setTabStatePropForTabId(tab.id, tgs.STATE_SUSPEND_REASON, 3);
-      const suspendedUrl = gsUtils.generateSuspendedUrl(tab.url, tab.title, 0);
+      const suspendedUrl = await prepareSuspendedTab(tab);
       gsUtils.log(tab.id, QUEUE_ID, 'Suspending discarded unsuspended tab');
 
       // Note: This bypasses the suspension tab queue and also prevents screenshots from being taken

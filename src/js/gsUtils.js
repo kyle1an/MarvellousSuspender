@@ -8,6 +8,7 @@ import  { gsStorage }             from './gsStorage.js';
 import  { gsTabDiscardManager }   from './gsTabDiscardManager.js';
 import  { gsTabSuspendManager }   from './gsTabSuspendManager.js';
 import  { tgs }                   from './tgs.js';
+import  { faviconResolutionRules } from './fork/faviconResolutionRules.js';
 
 'use strict';
 
@@ -634,9 +635,12 @@ export const gsUtils = {
     }
   },
 
-  generateSuspendedUrl: (url, title, scrollPos) => {
+  generateSuspendedUrl: (url, title, scrollPos, favIconUrl) => {
     const encodedTitle = gsUtils.encodeString(title);
-    var args = `#ttl=${encodedTitle}&pos=${scrollPos || '0'}&uri=${url}`;
+    const encodedFavIconUrl = faviconResolutionRules.shouldEmbedSource(url, favIconUrl)
+      ? `&favi=${gsUtils.encodeString(favIconUrl)}`
+      : '';
+    var args = `#ttl=${encodedTitle}&pos=${scrollPos || '0'}${encodedFavIconUrl}&uri=${url}`;
     return chrome.runtime.getURL('suspended.html' + args);
   },
 
@@ -769,6 +773,9 @@ export const gsUtils = {
       gsUtils.getHashVariable('uri', urlStr) ||
       gsUtils.decodeString(gsUtils.getHashVariable('url', urlStr) || '')
     );
+  },
+  getSuspendedFavIconUrl(urlStr) {
+    return gsUtils.decodeString(gsUtils.getHashVariable('favi', urlStr) || '');
   },
   getCleanTabTitle(tab) {
     let cleanedTitle = gsUtils.decodeString(tab.title);

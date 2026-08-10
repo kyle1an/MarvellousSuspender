@@ -3,6 +3,10 @@ import  { gsIndexedDb }           from './gsIndexedDb.js';
 import  { gsMascot }              from './gsMascot.js';
 import  { gsStorage }             from './gsStorage.js';
 import  { gsUtils }               from './gsUtils.js';
+import  {
+  CHROME_STYLE_FALLBACK_DATA_URL,
+  faviconResolutionRules,
+} from './fork/faviconResolutionRules.js';
 
 export const gsFavicon = (() => {
 
@@ -18,10 +22,10 @@ export const gsFavicon = (() => {
   // const GOOGLE_S2_URL = 'https://www.google.com/s2/favicons?domain_url=';
   /** @type { FavIconMeta } */
   const FALLBACK_CHROME_FAVICON_META = {
-    favIconUrl          : 'chrome://favicon/size/16@2x/fallbackChromeFaviconMeta',
+    favIconUrl          : CHROME_STYLE_FALLBACK_DATA_URL,
     isDark              : true,
-    normalisedDataUrl   : 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAYklEQVQ4T2NkoBAwIuuPior6j8O8xmXLljVgk8MwYNmyZdgMfcjAwLAAmyFEGfDv3z9FJiamA9gMIcoAkKsiIiIUsBlClAHofkf2JkED0DWDAnrUgOEfBsRkTpzpgBjN6GoA24V1Efr1zoAAAAAASUVORK5CYII=',
-    transparentDataUrl  : 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAaUlEQVQ4T2NkoBAwIuuPioqqx2YeExPTwSVLlhzAJodhwLJlyxrRDWVkZPzIyMh4AZshRBnAxsY28ffv3wnYDCHKAJCrEhISBLAZQpQB6H5H9iZBA9A1gwJ61IDhHwbEZE6c6YAYzehqAAmQeBHM42eMAAAAAElFTkSuQmCC',
+    normalisedDataUrl   : CHROME_STYLE_FALLBACK_DATA_URL,
+    transparentDataUrl  : CHROME_STYLE_FALLBACK_DATA_URL,
   };
 
 
@@ -122,41 +126,77 @@ export const gsFavicon = (() => {
   async function getFaviconMetaForUrl(url, tabFavIconUrl, fCacheOnly = false, fRecursion = false) {
     gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', url, tabFavIconUrl, fCacheOnly, fRecursion);
 
-    let faviconMeta = await getFaviconMetaFromCache(url);
-    if (faviconMeta) {
-      gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Found cached favicon', url, faviconMeta);
-      return faviconMeta;
+    const resolutionPlan = faviconResolutionRules.getResolutionPlan(
+      url,
+      tabFavIconUrl,
+      { cacheOnly: fCacheOnly, recursive: fRecursion },
+    );
+    let faviconMeta;
+    let attemptedPreferredSource = false;
+    let storedFaviconMeta;
+
+    if (resolutionPlan.preferSource) {
+      storedFaviconMeta = await getFaviconMetaFromCache(url);
+      if (storedFaviconMeta?.favIconUrl === tabFavIconUrl) {
+        gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Found cached favicon', url, storedFaviconMeta);
+        return storedFaviconMeta;
+      }
+      attemptedPreferredSource = true;
+      faviconMeta = await buildFaviconMetaFromTab(tabFavIconUrl);
+      if (faviconMeta) {
+        await saveFaviconMetaToCache(url, faviconMeta);
+        gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Built preferred Jira favicon from tab source', faviconMeta);
+        return faviconMeta;
+      }
+      gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Could not build preferred Jira favicon', tabFavIconUrl, url);
     }
-    gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'No cached favicon', url);
+
+    if (resolutionPlan.readStored) {
+      faviconMeta = resolutionPlan.preferSource
+        ? storedFaviconMeta
+        : await getFaviconMetaFromCache(url);
+      if (faviconMeta) {
+        gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Found cached favicon', url, faviconMeta);
+        return faviconMeta;
+      }
+      gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'No cached favicon', url);
+    }
+    else {
+      gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Skipping stored favicon without an authoritative source', url);
+    }
 
     if (fCacheOnly) {
       return;
     }
 
     // Else try to build from chrome's favicon cache
-    faviconMeta = await buildFaviconMetaFromChrome(url);
-    if (faviconMeta) {
-      await saveFaviconMetaToCache(url, faviconMeta);
-      gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Found favicon from Chrome', url, faviconMeta);
-      return faviconMeta;
+    if (resolutionPlan.readChrome) {
+      faviconMeta = await buildFaviconMetaFromChrome(url);
+      if (faviconMeta) {
+        await saveFaviconMetaToCache(url, faviconMeta);
+        gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Found favicon from Chrome', url, faviconMeta);
+        return faviconMeta;
+      }
+      gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'No favicon in chrome cache', url);
     }
-    gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'No favicon in chrome cache', url);
 
     // Else try to build from tabFavIconUrl
-    faviconMeta = await buildFaviconMetaFromTab(tabFavIconUrl);
-    if (faviconMeta) {
-      gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Built faviconMeta from tabFavIconUrl', faviconMeta);
-      return faviconMeta;
+    if (resolutionPlan.readSource && !attemptedPreferredSource) {
+      faviconMeta = await buildFaviconMetaFromTab(tabFavIconUrl);
+      if (faviconMeta) {
+        gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Built faviconMeta from tabFavIconUrl', faviconMeta);
+        return faviconMeta;
+      }
     }
     gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'No tabFavIconUrl', tabFavIconUrl, url);
 
 
-    // Else try one more time with the root hostname -- this is needed for YouTube, for example
+    // Else try one more time with the root hostname for known pages that need it.
 
     const fullUrl = gsUtils.getNewURL(url)?.toString();
     const rootUrl = gsUtils.getRootUrlNew(fullUrl);       // data URI and invalid URLs will return undefined here
 
-    if (!fRecursion && fullUrl && rootUrl && fullUrl != rootUrl) {
+    if (resolutionPlan.retryRoot && fullUrl && rootUrl && fullUrl != rootUrl) {
       gsUtils.log('gsFavicon', 'Trying root hostname', fullUrl, rootUrl);
       faviconMeta = await getFaviconMetaForUrl(rootUrl, tabFavIconUrl, fCacheOnly, true);
       if (faviconMeta) {
@@ -181,11 +221,20 @@ export const gsFavicon = (() => {
     }
 
     let   originalUrl   = tab.url ?? '';
-    const tabFavIconUrl = tab.favIconUrl ?? '';
+    let   tabFavIconUrl = tab.favIconUrl ?? '';
 
     // First try to fetch from cache
     if (gsUtils.isSuspendedTab(tab)) {
       originalUrl = gsUtils.getOriginalUrl(tab.url);
+      tabFavIconUrl = '';
+      const embeddedFavIconUrl = gsUtils.getSuspendedFavIconUrl(tab.url);
+      if (faviconResolutionRules.shouldEmbedSource(originalUrl, embeddedFavIconUrl)) {
+        tabFavIconUrl = embeddedFavIconUrl;
+      }
+      else if (!fCacheOnly) {
+        const savedTabInfo = await gsIndexedDb.fetchTabInfo(originalUrl);
+        tabFavIconUrl = savedTabInfo?.favIconUrl ?? '';
+      }
     }
 
     const faviconMeta = await getFaviconMetaForUrl(originalUrl, tabFavIconUrl, fCacheOnly);
@@ -225,7 +274,9 @@ export const gsFavicon = (() => {
     if (favIconUrl && favIconUrl !== (await gsMascot.resolveUrl('img/ic_suspendy_16x16.webp'))) {
       gsUtils.log('gsFavicon', 'buildFaviconMetaFromTab', favIconUrl);
       try {
-        const faviconMeta = await buildFaviconMeta(favIconUrl);
+        const loadableFavIconUrl = await faviconResolutionRules.getLoadableSource(favIconUrl);
+        const faviconMeta = await buildFaviconMeta(loadableFavIconUrl);
+        faviconMeta.favIconUrl = favIconUrl;
         const isValid     = await isFaviconMetaValid(faviconMeta);
         if (isValid) {
           return faviconMeta;
@@ -242,15 +293,14 @@ export const gsFavicon = (() => {
    * @returns { Promise< FavIconMeta | undefined > }
    */
   async function getFaviconMetaFromCache(url) {
-    const fullUrl   = gsUtils.getRootUrl(url, true, false);
-    const faviconMeta = await gsIndexedDb.fetchFaviconMeta(fullUrl);
-    // if (!faviconMeta) {
-    //   const rootUrl = gsUtils.getRootUrl(url, false, false);
-    //   faviconMeta   = await gsIndexedDb.fetchFaviconMeta(rootUrl);
-    // }
-    const isValid   = await isFaviconMetaValid(faviconMeta);
-    if (isValid) {
-      return faviconMeta;
+    const defaultCacheKey = gsUtils.getRootUrl(url, true, false);
+    const cacheKeys = faviconResolutionRules.getCacheKeys(url, defaultCacheKey);
+    for (const cacheKey of cacheKeys) {
+      const faviconMeta = await gsIndexedDb.fetchFaviconMeta(cacheKey);
+      const isValid = await isFaviconMetaValid(faviconMeta);
+      if (isValid) {
+        return faviconMeta;
+      }
     }
   }
 
@@ -259,12 +309,12 @@ export const gsFavicon = (() => {
    * @param { object }  faviconMeta
    */
   async function saveFaviconMetaToCache(url, faviconMeta) {
-    const fullUrl = gsUtils.getRootUrl(url, true, false);
-    // const rootUrl = gsUtils.getRootUrl(url, false, false);
-    gsUtils.log('gsFavicon', `Saving favicon cache entry for ${fullUrl}`, faviconMeta);
-    await gsIndexedDb.addFaviconMeta(fullUrl, Object.assign({}, faviconMeta));
-    // gsUtils.log('gsFavicon', `Saving favicon cache entry for ${rootUrl}`, faviconMeta);
-    // await gsIndexedDb.addFaviconMeta(rootUrl, Object.assign({}, faviconMeta));
+    const defaultCacheKey = gsUtils.getRootUrl(url, true, false);
+    const cacheKeys = faviconResolutionRules.getCacheKeys(url, defaultCacheKey);
+    for (const cacheKey of cacheKeys) {
+      gsUtils.log('gsFavicon', `Saving favicon cache entry for ${cacheKey}`, faviconMeta);
+      await gsIndexedDb.addFaviconMeta(cacheKey, Object.assign({}, faviconMeta));
+    }
   }
 
   /**
@@ -347,6 +397,7 @@ export const gsFavicon = (() => {
   function buildFaviconMeta(url) {
     // gsUtils.log( 'gsFavicon', 'buildFaviconMeta', url );
     const timeout = 5 * 1000;
+    let loadTimeoutId;
     return new Promise((resolve, reject) => {
       const img = new Image();
       // 12-16-2018 ::: @CollinChaffin ::: Anonymous declaration required to prevent terminating cross origin security errors
@@ -443,12 +494,14 @@ export const gsFavicon = (() => {
           reject('Failed to get canvas context');
         }
       };
-      img.src = url;
-      setTimeout(() => {
+      loadTimeoutId = setTimeout(() => {
         if (!imageLoaded) {
           reject(`Failed to load img.src for ${url}`);
         }
       }, timeout);
+      img.src = url;
+    }).finally(() => {
+      clearTimeout(loadTimeoutId);
     });
   }
 
