@@ -19,13 +19,13 @@ test('Jira issue routes use issue identity instead of a shared tenant cache entr
   const pageUrl = 'https://team.atlassian.net/jira/software/c/projects/ABC/boards/7?selectedIssue=abc-42';
 
   assert.deepEqual(
-    faviconResolutionRules.getCacheKeys(pageUrl, 'team.atlassian.net/jira/software/c/projects/ABC/boards/7'),
-    ['team.atlassian.net/__atlassian_favicon__/issue/ABC-42'],
+    faviconResolutionRules.getCacheKey(pageUrl, 'team.atlassian.net/jira/software/c/projects/ABC/boards/7'),
+    'team.atlassian.net/__atlassian_favicon__/issue/ABC-42',
   );
 });
 
 test('Jira issue identity is recognized in issueKey queries and path routes', () => {
-  const cacheKey = (url) => faviconResolutionRules.getCacheKeys(url, 'default-cache-key')[0];
+  const cacheKey = (url) => faviconResolutionRules.getCacheKey(url, 'default-cache-key');
 
   assert.deepEqual(
     [
@@ -44,23 +44,23 @@ test('Jira issue identity is recognized in issueKey queries and path routes', ()
 test('generic Atlassian and Google Docs pages retain upstream full-path cache keys', () => {
   assert.deepEqual(
     [
-      faviconResolutionRules.getCacheKeys(
+      faviconResolutionRules.getCacheKey(
         'https://team.atlassian.net/wiki/spaces/ENG',
         'team.atlassian.net/wiki/spaces/ENG',
       ),
-      faviconResolutionRules.getCacheKeys(
+      faviconResolutionRules.getCacheKey(
         'https://docs.google.com/document/d/document-id/edit',
         'docs.google.com/document/d/document-id/edit',
       ),
-      faviconResolutionRules.getCacheKeys(
+      faviconResolutionRules.getCacheKey(
         'https://docs.google.com/spreadsheets/d/sheet-id/edit',
         'docs.google.com/spreadsheets/d/sheet-id/edit',
       ),
     ],
     [
-      ['team.atlassian.net/wiki/spaces/ENG'],
-      ['docs.google.com/document/d/document-id/edit'],
-      ['docs.google.com/spreadsheets/d/sheet-id/edit'],
+      'team.atlassian.net/wiki/spaces/ENG',
+      'docs.google.com/document/d/document-id/edit',
+      'docs.google.com/spreadsheets/d/sheet-id/edit',
     ],
   );
 });
@@ -74,8 +74,6 @@ test('Jira issues prefer an authoritative tab favicon before stored fallbacks', 
     {
       preferSource: true,
       readStored: true,
-      readChrome: true,
-      readSource: true,
       retryRoot: false,
     },
   );
@@ -91,8 +89,6 @@ test('cache-only resolution reads stored data without attempting any favicon sou
     {
       preferSource: false,
       readStored: true,
-      readChrome: false,
-      readSource: false,
       retryRoot: false,
     },
   );
@@ -108,9 +104,9 @@ test('pages without an authoritative source avoid stale stored and Chrome fallba
       plan('https://team.atlassian.net/browse/ABC-42'),
     ],
     [
-      { preferSource: false, readStored: false, readChrome: false, readSource: false, retryRoot: false },
-      { preferSource: false, readStored: false, readChrome: false, readSource: false, retryRoot: false },
-      { preferSource: false, readStored: false, readChrome: false, readSource: false, retryRoot: false },
+      { preferSource: false, readStored: false, retryRoot: false },
+      { preferSource: false, readStored: false, retryRoot: false },
+      { preferSource: false, readStored: false, retryRoot: false },
     ],
   );
 });
@@ -139,8 +135,6 @@ test('a root retry may read root caches but never recurses again', () => {
     {
       preferSource: false,
       readStored: true,
-      readChrome: true,
-      readSource: false,
       retryRoot: false,
     },
   );

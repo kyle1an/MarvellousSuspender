@@ -13,15 +13,6 @@ import  { reloadSuspendedPage }   from './suspendedPageReload.js';
   let currentTab;
   let urlInput;
 
-  function injectStylesheet() {
-    const stylesheet = document.createElement('link');
-    stylesheet.rel = 'stylesheet';
-    stylesheet.href = chrome.runtime.getURL(
-      'css/fork/suspendedPageEnhancement.css',
-    );
-    document.head.appendChild(stylesheet);
-  }
-
   function showUrlSpinner() {
     document.body.classList.add('waking');
     document.getElementById(URL_SPINNER_ID)?.classList.add('loading');
@@ -232,7 +223,6 @@ import  { reloadSuspendedPage }   from './suspendedPageReload.js';
   }
 
   function install() {
-    injectStylesheet();
     document.body.classList.add('suspendedPageEnhanced');
     injectReloadButton();
     installUrlEditorWhenInitialised();

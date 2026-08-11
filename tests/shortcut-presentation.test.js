@@ -9,10 +9,9 @@ import {
 test('macOS shortcuts use compact modifier glyphs in platform order', () => {
   const cases = [
     ['(⌘ · Shift · S)', '⇧⌘S'],
-    ['Command+Shift+S', '⇧⌘S'],
     ['Ctrl · Shift · S', '⌃⇧S'],
-    ['MacCtrl+Shift+S', '⌃⇧S'],
-    ['MacCtrl+Option+Shift+Command+S', '⌃⌥⇧⌘S'],
+    ['MacCtrl · Option · Shift · ⌘ · S', '⌃⌥⇧⌘S'],
+    ['Alt · Shift · PageUp', '⌥⇧PageUp'],
   ];
 
   for (const [shortcut, expected] of cases) {
@@ -27,7 +26,7 @@ test('Windows and Linux shortcuts use plus-delimited modifier names', () => {
       'Ctrl+Shift+S',
     );
     assert.equal(
-      formatShortcutForPlatform('Alt+Shift+PageUp', os),
+      formatShortcutForPlatform('(Alt · Shift · PageUp)', os),
       'Alt+Shift+PageUp',
     );
   }

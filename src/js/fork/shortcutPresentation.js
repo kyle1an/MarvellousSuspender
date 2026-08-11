@@ -1,20 +1,10 @@
-const MAC_MODIFIER_ORDER = ['Control', 'Option', 'Shift', 'Command'];
-const NON_MAC_MODIFIER_ORDER = ['Search', 'Control', 'Option', 'Shift', 'Command'];
-
-const MAC_MODIFIER_GLYPHS = {
-  Control: '⌃',
-  Option: '⌥',
-  Shift: '⇧',
-  Command: '⌘',
-};
-
-const NON_MAC_MODIFIER_LABELS = {
-  Control: 'Ctrl',
-  Option: 'Alt',
-  Shift: 'Shift',
-  Command: 'Meta',
-  Search: 'Search',
-};
+const MODIFIERS = [
+  { tokens: ['Search'], nonMac: 'Search' },
+  { tokens: ['Ctrl', 'MacCtrl'], mac: '⌃', nonMac: 'Ctrl' },
+  { tokens: ['Alt', 'Option'], mac: '⌥', nonMac: 'Alt' },
+  { tokens: ['Shift'], mac: '⇧', nonMac: 'Shift' },
+  { tokens: ['⌘'], mac: '⌘', nonMac: 'Meta' },
+];
 
 function unwrapShortcut(shortcut) {
   return String(shortcut ?? '')
@@ -23,53 +13,12 @@ function unwrapShortcut(shortcut) {
     .trim();
 }
 
-function tokeniseShortcut(shortcut) {
-  if (!shortcut) {
-    return [];
-  }
-
-  if (/[+·]/u.test(shortcut)) {
-    return shortcut.split(/\s*(?:\+|·)\s*/u).filter(Boolean);
-  }
-
-  const compactMacShortcut = shortcut.match(/^([⌃⌥⇧⌘]+)(.+)$/u);
-  if (compactMacShortcut) {
-    return [...compactMacShortcut[1], compactMacShortcut[2]];
-  }
-
-  return shortcut.split(/\s+/u).filter(Boolean);
-}
-
-function normaliseModifier(token) {
-  const normalisedToken = token.toLowerCase();
-
-  if (token === '⇧' || normalisedToken === 'shift') {
-    return 'Shift';
-  }
-  if (token === '⌥' || normalisedToken === 'alt' || normalisedToken === 'option') {
-    return 'Option';
-  }
-  if (token === '⌃' || normalisedToken === 'macctrl' || normalisedToken === 'control') {
-    return 'Control';
-  }
-  if (token === '⌘' || normalisedToken === 'command' || normalisedToken === 'meta') {
-    return 'Command';
-  }
-  if (normalisedToken === 'ctrl') {
-    return 'Control';
-  }
-  if (normalisedToken === 'search') {
-    return 'Search';
-  }
-  return null;
-}
-
 export function formatShortcutForPlatform(shortcut, os) {
   const modifiers = new Set();
   const keys = [];
 
-  for (const token of tokeniseShortcut(unwrapShortcut(shortcut))) {
-    const modifier = normaliseModifier(token);
+  for (const token of unwrapShortcut(shortcut).split(/\s+·\s+/u).filter(Boolean)) {
+    const modifier = MODIFIERS.find(({ tokens }) => tokens.includes(token));
     if (modifier) {
       modifiers.add(modifier);
     }
@@ -82,19 +31,14 @@ export function formatShortcutForPlatform(shortcut, os) {
     return '';
   }
 
-  if (os === 'mac') {
-    return MAC_MODIFIER_ORDER
-      .filter((modifier) => modifiers.has(modifier))
-      .map((modifier) => MAC_MODIFIER_GLYPHS[modifier])
-      .join('') + keys.join('');
-  }
-
+  const separator = os === 'mac' ? '' : '+';
   return [
-    ...NON_MAC_MODIFIER_ORDER
+    ...MODIFIERS
       .filter((modifier) => modifiers.has(modifier))
-      .map((modifier) => NON_MAC_MODIFIER_LABELS[modifier]),
+      .map((modifier) => os === 'mac' ? modifier.mac : modifier.nonMac)
+      .filter(Boolean),
     ...keys,
-  ].join('+');
+  ].join(separator);
 }
 
 export function presentShortcut(wrapper, os) {

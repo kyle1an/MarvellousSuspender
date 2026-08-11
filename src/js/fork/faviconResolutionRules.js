@@ -90,17 +90,17 @@ export const faviconResolutionRules = {
   /**
    * @param {string} pageUrl
    * @param {string} defaultCacheKey
-   * @returns {string[]}
+   * @returns {string | undefined}
    */
-  getCacheKeys(pageUrl, defaultCacheKey) {
+  getCacheKey(pageUrl, defaultCacheKey) {
     const parsedPageUrl = parseUrl(pageUrl);
     if (parsedPageUrl && isAtlassianHostname(parsedPageUrl.hostname)) {
       const issueKey = getJiraIssueKey(parsedPageUrl);
       if (issueKey) {
-        return [`${parsedPageUrl.hostname}/${ATLASSIAN_ISSUE_CACHE_PREFIX}/${issueKey}`];
+        return `${parsedPageUrl.hostname}/${ATLASSIAN_ISSUE_CACHE_PREFIX}/${issueKey}`;
       }
     }
-    return defaultCacheKey ? [defaultCacheKey] : [];
+    return defaultCacheKey || undefined;
   },
 
   /**
@@ -110,8 +110,6 @@ export const faviconResolutionRules = {
    * @returns {{
    *   preferSource: boolean,
    *   readStored: boolean,
-   *   readChrome: boolean,
-   *   readSource: boolean,
    *   retryRoot: boolean,
    * }}
    */
@@ -126,8 +124,6 @@ export const faviconResolutionRules = {
     return {
       preferSource: Boolean(issueKey && hasSource && !cacheOnly),
       readStored: cacheOnly || hasSource || recursive,
-      readChrome: (hasSource || recursive) && !cacheOnly,
-      readSource: hasSource && !cacheOnly,
       retryRoot:
         !cacheOnly &&
         !recursive &&
@@ -169,15 +165,10 @@ export const faviconResolutionRules = {
    */
   shouldEmbedSource(pageUrl, sourceUrl) {
     const parsedPageUrl = parseUrl(pageUrl);
-    const parsedSourceUrl = parseUrl(sourceUrl);
     return Boolean(
       parsedPageUrl &&
-      parsedSourceUrl &&
       isAtlassianHostname(parsedPageUrl.hostname) &&
-      (
-        isAtlassianHostname(parsedSourceUrl.hostname) ||
-        isGoogleFaviconServiceUrl(parsedSourceUrl)
-      )
+      faviconResolutionRules.shouldNormalizeRemoteSource(sourceUrl)
     );
   },
 };

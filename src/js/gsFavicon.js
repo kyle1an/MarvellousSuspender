@@ -132,7 +132,6 @@ export const gsFavicon = (() => {
       { cacheOnly: fCacheOnly, recursive: fRecursion },
     );
     let faviconMeta;
-    let attemptedPreferredSource = false;
     let storedFaviconMeta;
 
     if (resolutionPlan.preferSource) {
@@ -141,7 +140,6 @@ export const gsFavicon = (() => {
         gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Found cached favicon', url, storedFaviconMeta);
         return storedFaviconMeta;
       }
-      attemptedPreferredSource = true;
       faviconMeta = await buildFaviconMetaFromTab(tabFavIconUrl);
       if (faviconMeta) {
         await saveFaviconMetaToCache(url, faviconMeta);
@@ -170,7 +168,7 @@ export const gsFavicon = (() => {
     }
 
     // Else try to build from chrome's favicon cache
-    if (resolutionPlan.readChrome) {
+    if (tabFavIconUrl || fRecursion) {
       faviconMeta = await buildFaviconMetaFromChrome(url);
       if (faviconMeta) {
         await saveFaviconMetaToCache(url, faviconMeta);
@@ -181,7 +179,7 @@ export const gsFavicon = (() => {
     }
 
     // Else try to build from tabFavIconUrl
-    if (resolutionPlan.readSource && !attemptedPreferredSource) {
+    if (tabFavIconUrl && !resolutionPlan.preferSource) {
       faviconMeta = await buildFaviconMetaFromTab(tabFavIconUrl);
       if (faviconMeta) {
         gsUtils.log('gsFavicon', 'getFaviconMetaForUrl', 'Built faviconMeta from tabFavIconUrl', faviconMeta);
@@ -294,13 +292,13 @@ export const gsFavicon = (() => {
    */
   async function getFaviconMetaFromCache(url) {
     const defaultCacheKey = gsUtils.getRootUrl(url, true, false);
-    const cacheKeys = faviconResolutionRules.getCacheKeys(url, defaultCacheKey);
-    for (const cacheKey of cacheKeys) {
-      const faviconMeta = await gsIndexedDb.fetchFaviconMeta(cacheKey);
-      const isValid = await isFaviconMetaValid(faviconMeta);
-      if (isValid) {
-        return faviconMeta;
-      }
+    const cacheKey = faviconResolutionRules.getCacheKey(url, defaultCacheKey);
+    if (!cacheKey) return;
+
+    const faviconMeta = await gsIndexedDb.fetchFaviconMeta(cacheKey);
+    const isValid = await isFaviconMetaValid(faviconMeta);
+    if (isValid) {
+      return faviconMeta;
     }
   }
 
@@ -310,11 +308,11 @@ export const gsFavicon = (() => {
    */
   async function saveFaviconMetaToCache(url, faviconMeta) {
     const defaultCacheKey = gsUtils.getRootUrl(url, true, false);
-    const cacheKeys = faviconResolutionRules.getCacheKeys(url, defaultCacheKey);
-    for (const cacheKey of cacheKeys) {
-      gsUtils.log('gsFavicon', `Saving favicon cache entry for ${cacheKey}`, faviconMeta);
-      await gsIndexedDb.addFaviconMeta(cacheKey, Object.assign({}, faviconMeta));
-    }
+    const cacheKey = faviconResolutionRules.getCacheKey(url, defaultCacheKey);
+    if (!cacheKey) return;
+
+    gsUtils.log('gsFavicon', `Saving favicon cache entry for ${cacheKey}`, faviconMeta);
+    await gsIndexedDb.addFaviconMeta(cacheKey, Object.assign({}, faviconMeta));
   }
 
   /**
