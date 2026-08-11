@@ -22,8 +22,8 @@
 
 :root {
   /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Cascadia Mono', 'Fira Code', 'Consolas', monospace;
+  --font-sans: sans-serif;
+  --font-mono: monospace;
 
   /* Color — Technical Blueprint, light */
   --background:             oklch(0.98 0 0);
